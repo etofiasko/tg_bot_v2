@@ -12,7 +12,7 @@ from config import REPORT_MODULE_PATH
 
 sys.path.insert(0, REPORT_MODULE_PATH)
 
-from document_gen.generator import generate_trade_document
+from document_gen.generator import generate_trade_document # type: ignore
 
 excluded_tnveds_string = (
     "8411,841111,841112,841121,841122,841181,841182,841191,841199,851711,851712,851713,851714,851718,851761,851762,851769,851770,51771,"
