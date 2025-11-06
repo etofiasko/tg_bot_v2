@@ -1,10 +1,27 @@
 import psycopg2
-from config import DB_CONFIG, USERS_DB_CONFIG
+from config import DB_CONFIG, USERS_DB_CONFIG, ALT_DB_CONFIG
+from contextvars import ContextVar
 
+_active_db: ContextVar[str] = ContextVar("_active_db", default="main")
+
+def set_active_db(alias: str):
+    if alias not in ("main", "alt"):
+        raise ValueError("active db must be 'main' or 'alt'")
+    _active_db.set(alias)
+
+class use_db:
+    def __init__(self, alias: str):
+        self.alias = alias
+        self._token = None
+    def __enter__(self):
+        self._token = _active_db.set(self.alias)
+    def __exit__(self, exc_type, exc, tb):
+        _active_db.reset(self._token)
 
 def get_connection():
-    conn = psycopg2.connect(**DB_CONFIG)
-    return conn
+    alias = _active_db.get()
+    cfg = DB_CONFIG if alias == "main" else ALT_DB_CONFIG
+    return psycopg2.connect(**cfg)
 
 
 def get_regions():

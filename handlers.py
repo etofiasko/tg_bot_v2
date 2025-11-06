@@ -1,12 +1,13 @@
 import sys
 import os
+import re
 import pandas as pd
 from io import BytesIO
 from aiogram import types
 from aiogram.dispatcher import FSMContext
 from aiogram.types import Message, ReplyKeyboardRemove, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from states import ReportStates
-from bot_db import get_partners, register_user, add_download_history, get_categories, get_subcategories, get_user_role, change_user_role, get_download_history
+from states import ReportStates, StartNewStates
+from bot_db import set_active_db, get_partners, register_user, add_download_history, get_categories, get_subcategories, get_user_role, change_user_role, get_download_history
 from config import REPORT_MODULE_PATH
 
 sys.path.insert(0, REPORT_MODULE_PATH)
@@ -26,6 +27,7 @@ excluded_tnveds_string = (
 
 
 async def start_handler(message: types.Message, state: FSMContext, user=None):
+    set_active_db("main")
     await state.finish()
     user = user or message.from_user
     telegram_id = user.id
@@ -43,6 +45,7 @@ async def start_handler(message: types.Message, state: FSMContext, user=None):
         await state.update_data(partner_list=partners)
 
         keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+        keyboard.add(KeyboardButton("Вернуться назад"))
         for partner in partners:
             keyboard.add(KeyboardButton(partner))
 
@@ -60,7 +63,7 @@ async def partner_chosen_handler(message: types.Message, state: FSMContext):
     text = message.text.strip()
     
     if text.lower() == "начать заново":
-        await message.reply("Чтобы начать заново, нажмите /start")
+        await message.answer("Чтобы начать заново, нажмите \n/start для tg_bot_v1\n/start_new для tg_bot_v2")
         await state.finish()
         return
     data = await state.get_data()
@@ -462,9 +465,9 @@ async def finalize_report(msg_or_cbq, state, tg_user):
     text_size = int(data.get("text_size") or 7)
     country_table_size = int(data.get("country_table_size") or 15)
     if isinstance(msg_or_cbq, types.CallbackQuery):
-        await msg_or_cbq.message.answer(f"Идет генерация отчета. Пожалуйста, подождите.", reply_markup = ReplyKeyboardRemove())
+        await msg_or_cbq.message.answer(f"❗Идет генерация справки. Пожалуйста, подождите.❗", reply_markup = ReplyKeyboardRemove())
     else:
-        await msg_or_cbq.answer(f"Идет генерация отчета. Пожалуйста, подождите.", reply_markup = ReplyKeyboardRemove())
+        await msg_or_cbq.answer(f"❗Идет генерация справки. Пожалуйста, подождите.❗", reply_markup = ReplyKeyboardRemove())
     try:
         doc, filename, short_filename = generate_trade_document(
             region=region,
@@ -477,14 +480,16 @@ async def finalize_report(msg_or_cbq, state, tg_user):
             country_table_size=country_table_size,
             month_range_raw=months,
             exclude_raw=exclude_tnved,
+            tn_ved_raw=None,
+            plain=0,
         )
 
     except Exception as e:
         if isinstance(msg_or_cbq, types.CallbackQuery):
-            await msg_or_cbq.message.answer(f"Произошла ошибка при генерации файла. Чтобы начать заново, нажмите /start")
+            await msg_or_cbq.message.answer(f"Произошла ошибка при генерации файла. Чтобы начать заново, нажмите \n/start для tg_bot_v1\n/start_new для tg_bot_v2")
             await state.finish()
         else:
-            await msg_or_cbq.answer(f"Произошла ошибка при генерации файла. Чтобы начать заново, нажмите /start")
+            await msg_or_cbq.answer(f"Произошла ошибка при генерации файла. Чтобы начать заново, нажмите \n/start для tg_bot_v1\n/start_new для tg_bot_v2")
             await state.finish()
         return
     
@@ -495,17 +500,17 @@ async def finalize_report(msg_or_cbq, state, tg_user):
 
         if isinstance(msg_or_cbq, types.CallbackQuery):
             await msg_or_cbq.message.answer_document((short_filename, buf))
-            await msg_or_cbq.message.answer(f"Ваш документ {filename} готов. Чтобы начать заново, нажмите /start")
+            await msg_or_cbq.message.answer(f"Ваш документ {filename} готов. Чтобы начать заново, нажмите \n/start для tg_bot_v1\n/start_new для tg_bot_v2")
         else:
             await msg_or_cbq.answer_document((short_filename, buf))
-            await msg_or_cbq.answer(f"Ваш документ {filename} готов. Чтобы начать заново, нажмите /start")
+            await msg_or_cbq.answer(f"Ваш документ {filename} готов. Чтобы начать заново, нажмите \n/start для tg_bot_v1\n/start_new для tg_bot_v2")
         await add_download_history(telegram_id, region, partner, year)
         await state.finish()
     else:
         if isinstance(msg_or_cbq, types.CallbackQuery):
-            await msg_or_cbq.message.answer(f"По выбранным фильтрам нет данных. Чтобы начать заново, нажмите /start")
+            await msg_or_cbq.message.answer(f"По выбранным фильтрам нет данных. Чтобы начать заново, нажмите \n/start для tg_bot_v1\n/start_new для tg_bot_v2")
         else:
-            await msg_or_cbq.answer(f"По выбранным фильтрам нет данных. Чтобы начать заново, нажмите /start")
+            await msg_or_cbq.answer(f"По выбранным фильтрам нет данных. Чтобы начать заново, нажмите \n/start для tg_bot_v1\n/start_new для tg_bot_v2")
         await state.finish()
 
 
@@ -552,3 +557,335 @@ async def download_history_handler(message: types.Message):
     await message.answer_document(("download_history.xlsx", output))
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+async def start_new_handler(message: types.Message, state: FSMContext, user=None):
+    await state.finish()
+    set_active_db("alt")
+    user = user or message.from_user
+    telegram_id = user.id
+    username = user.username or f"user_{telegram_id}"
+    register_user(telegram_id, username.strip().lower())
+    role = get_user_role(telegram_id)
+    if role not in ['admin', 'advanced']:
+        await message.reply("У вас нет прав для использования бота.")
+        return
+
+    await state.update_data(region="Республика Казахстан")
+
+    await state.update_data(
+        digit=4,
+        months="",
+        exclude_tnved="",
+        table_size=25,
+        text_size=7,
+        country_table_size=15,
+        subcategory=None,
+        plain=0,
+        tn_ved=""
+    )
+
+    kb = InlineKeyboardMarkup()
+    kb.add(
+        InlineKeyboardButton("Самолётик", callback_data="plane_cb"),
+        InlineKeyboardButton("По стране", callback_data="country_cb"),
+    )
+    kb.add(InlineKeyboardButton("По товару", callback_data="product_cb"),
+        InlineKeyboardButton("Вернуться назад", callback_data="cancel_cb"))
+
+    await message.answer(f"Добро пожаловать, {username}. \n\nВыберите тип справки для генерации:", reply_markup=kb)
+    await StartNewStates.choosing_variant.set()
+
+
+async def start_new_variant_chosen(cbq: CallbackQuery, state: FSMContext):
+    await cbq.answer()
+    data = cbq.data
+    await cbq.message.edit_reply_markup(reply_markup=None)
+
+    partners = get_partners()
+
+    partners_kb = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    partners_kb.add(KeyboardButton("Начать заново"))
+    for p in partners:
+        partners_kb.add(KeyboardButton(p))
+    
+
+    if data == "cancel_cb":
+        await cbq.message.answer("Чтобы начать заново, нажмите \n/start для tg_bot_v1\n/start_new для tg_bot_v2")
+        await state.finish()
+        return
+
+    if data == "plane_cb":
+        await state.update_data(plain=1, tn_ved="", subcategory=None)
+        await cbq.message.answer("Выберите страну-партнёра для Республики Казахстан.", reply_markup=partners_kb)
+        await StartNewStates.choosing_partner.set()
+
+    if data == "country_cb":
+        await state.update_data(plain=0, tn_ved="", subcategory=None)
+        await cbq.message.answer("Выберите страну-партнёра для Республики Казахстан.", reply_markup=partners_kb)
+        await StartNewStates.choosing_partner.set()
+
+    if data == "product_cb":
+        await state.update_data(plain=0, tn_ved="", subcategory=None)
+        keyboard = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+        keyboard.add(KeyboardButton("Начать заново"))
+        await cbq.message.answer("Введите код ТН ВЭД, только цифры (от 2 до 10 знаков).", reply_markup=keyboard)
+        await StartNewStates.waiting_for_tnved.set()
+
+
+async def start_new_waiting_tnved(message: Message, state: FSMContext):
+    txt = (message.text or "").strip()
+    if txt.lower() == "начать заново":
+        await start_new_handler(message, state)
+        return
+
+    if not re.fullmatch(r"\d{2,10}", txt):
+        await message.answer("Неверный формат ТН ВЭД. Убедитесь, что вы ввели только цифры (от 2 до 10 знаков).")
+        return
+
+    await state.update_data(tn_ved=txt)
+
+    partners = get_partners()
+    kb = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    kb.add(KeyboardButton("Начать заново"))
+    for p in partners:
+        kb.add(KeyboardButton(p))
+    await message.answer("Выберите страну-партнёра для Республики Казахстан.", reply_markup=kb)
+    await StartNewStates.choosing_partner.set()
+
+
+async def start_new_partner(message: Message, state: FSMContext):
+    txt = (message.text or "").strip()
+    if txt.lower() == "начать заново":
+        await start_new_handler(message, state)
+        return
+
+    partners = get_partners()
+    if txt not in partners:
+        await message.answer("Такого партнёра нет. Пожалуйста, выберите из предложенного списка.")
+        return
+    await state.update_data(partner=txt)
+
+    years = ['2020','2021','2022','2023','2024','2025']
+    kb = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    kb.add(KeyboardButton("Начать заново"))
+    for y in years:
+        kb.add(KeyboardButton(str(y)))
+    await message.answer("Выберите год:", reply_markup=kb)
+    await StartNewStates.choosing_year.set()
+
+
+async def start_new_year(message: Message, state: FSMContext):
+    txt = (message.text or "").strip()
+    if txt.lower() == "начать заново":
+        await start_new_handler(message, state)
+        return
+
+    years = ['2020','2021','2022','2023','2024','2025']
+    if txt not in years:
+        await message.answer("Такого года нет. Пожалуйста, выберите из предложенного списка.")
+        return
+    await state.update_data(year=txt)
+
+    data = await state.get_data()
+    tn_ved = data.get("tn_ved", "")
+    plain = int(data.get("plain") or 0)
+
+    if plain == 1 or tn_ved:
+        kb = InlineKeyboardMarkup()
+        kb.add(
+            InlineKeyboardButton("Подтвердить", callback_data="sn_confirm"),
+            InlineKeyboardButton("Отмена", callback_data="sn_restart"),
+        )
+
+        summary = []
+        if plain == 1:
+            summary.append(f"Вид справки: <b>Самолётик</b>")
+        if tn_ved:
+            summary.append(f"Вид справки: <b>По товару</b>")
+            summary.append(f"ТН ВЭД: <b>{tn_ved}</b>")
+        if not tn_ved and plain != 1:
+            summary.append(f"Вид справки: <b>По стране</b>")
+        summary.append(f"Страна-партнёр: <b>{data.get('partner')}</b>")
+        summary.append(f"Год: <b>{data.get('year')}</b>")
+        
+        await message.answer("\n".join(summary), parse_mode="HTML", reply_markup=kb)
+        await StartNewStates.confirmation.set()
+        return
+
+    categories = get_categories()
+    kb = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    kb.add(KeyboardButton("Начать заново"))
+    kb.add(KeyboardButton("Нет категории"))
+    for c in categories:
+        kb.add(KeyboardButton(c))
+    await message.answer("Введите категорию или пропустите данный шаг:", reply_markup=kb)
+    await StartNewStates.choosing_category.set()
+
+
+async def start_new_category(message: Message, state: FSMContext):
+    txt = (message.text or "").strip()
+    if txt.lower() == "начать заново":
+        await start_new_handler(message, state)
+        return
+
+    if txt.startswith("Нет категории"):
+        await state.update_data(subcategory="")
+        kb = InlineKeyboardMarkup()
+        kb.add(
+            InlineKeyboardButton("Подтвердить", callback_data="sn_confirm"),
+            InlineKeyboardButton("Отмена", callback_data="sn_restart"),
+        )
+        d = await state.get_data()
+        await message.answer(
+            f"Вид справки: <b>По стране</b>\n"
+            f"Страна-партнёр: <b>{d.get('partner')}</b>\n"
+            f"Год: <b>{d.get('year')}</b>\n"
+            f"Категория: <b>Нет категории</b>",
+            parse_mode="HTML", reply_markup=kb
+        )
+        await StartNewStates.confirmation.set()
+        return
+
+    categories = get_categories()
+    if txt not in categories:
+        await message.answer("Такой категории нет. Пожалуйста, выберите из предложенного списка.")
+        return
+
+    await state.update_data(category_parent=txt)
+    subcats = get_subcategories(txt)
+    if not subcats:
+        await message.answer("В выбранной вами категории нет подкатегорий. Пожалуйста, выберите другую категорию.")
+        return
+
+    kb = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    kb.add(KeyboardButton("Начать заново"))
+    for sc in subcats:
+        kb.add(KeyboardButton(sc))
+    await message.answer("Выберите подкатегорию:", reply_markup=kb)
+    await StartNewStates.choosing_subcategory.set()
+
+
+async def start_new_subcategory(message: Message, state: FSMContext):
+    txt = (message.text or "").strip()
+    if txt.lower() == "начать заново":
+        await start_new_handler(message, state)
+        return
+
+    d = await state.get_data()
+    subcats = get_subcategories(d.get("category_parent"))
+    if txt not in subcats:
+        await message.answer("Такой подкатегории нет. Пожалуйста, выберите из предложенного списка.")
+        return
+
+    await state.update_data(subcategory=txt)
+
+    kb = InlineKeyboardMarkup()
+    kb.add(
+        InlineKeyboardButton("Подтвердить", callback_data="sn_confirm"),
+        InlineKeyboardButton("Отмена", callback_data="sn_restart"),
+    )
+    d = await state.get_data()
+    await message.answer(
+        f"Вид справки: <b>По стране</b>\n"
+        f"Страна-партнёр: <b>{d.get('partner')}</b>\n"
+        f"Год: <b>{d.get('year')}</b>\n"
+        f"Категория: <b>{d.get('category_parent')}</b>\n"
+        f"Подкатегория: <b>{d.get('subcategory')}</b>",
+        parse_mode="HTML", reply_markup=kb
+    )
+    await StartNewStates.confirmation.set()
+
+
+async def start_new_confirmation(cbq: CallbackQuery, state: FSMContext):
+    await cbq.answer()
+    await cbq.message.edit_reply_markup(reply_markup=None)
+    if cbq.data == "sn_restart":
+        user_message = cbq.from_user
+        await start_new_handler(cbq.message, state, user=user_message)
+        return
+    if cbq.data == "sn_confirm":
+        await finalize_report_start_new(cbq, state, cbq.from_user)
+
+
+async def finalize_report_start_new(msg_or_cbq, state, tg_user):
+    telegram_id = tg_user.id
+    d = await state.get_data()
+
+    region = "Республика Казахстан"
+    partner = str(d["partner"])
+    year = int(d["year"])
+
+    digit = int(d.get("digit") or 4)
+    months = str(d.get("months") or "")
+    exclude_tnved = str(d.get("exclude_tnved") or "")
+    table_size = int(d.get("table_size") or 25)
+    text_size = int(d.get("text_size") or 7)
+    country_table_size = int(d.get("country_table_size") or 15)
+
+    tn_ved = (d.get("tn_ved") or "").strip()
+    subcategory = (d.get("subcategory") or None)
+    if tn_ved:
+        subcategory = None
+
+    if isinstance(msg_or_cbq, types.CallbackQuery):
+        await msg_or_cbq.message.answer("❗Идет генерация справки. Пожалуйста, подождите.❗", reply_markup=ReplyKeyboardRemove())
+    else:
+        await msg_or_cbq.answer("❗Идет генерация справки. Пожалуйста, подождите.❗", reply_markup=ReplyKeyboardRemove())
+
+    try:
+        print(region,partner,year,digit,subcategory,text_size,table_size,country_table_size,months,
+              months,exclude_tnved,tn_ved,int(d.get("plain") or 0))
+        
+        doc, filename, short_filename = generate_trade_document(
+            region=region,
+            country_or_group=partner,
+            year=year,
+            digit=digit,
+            category=subcategory,
+            text_size=text_size,
+            table_size=table_size,
+            country_table_size=country_table_size,
+            month_range_raw=months,
+            exclude_raw=exclude_tnved,
+            tn_ved_raw=tn_ved,
+            plain=int(d.get("plain") or 0),
+        )
+        
+    except Exception:
+        if isinstance(msg_or_cbq, types.CallbackQuery):
+            await msg_or_cbq.message.answer("Произошла ошибка при генерации файла. Чтобы начать заново, нажмите \n/start для tg_bot_v1\n/start_new для tg_bot_v2")
+            await state.finish()
+        else:
+            await msg_or_cbq.answer("Произошла ошибка при генерации файла. Чтобы начать заново, нажмите \n/start для tg_bot_v1\n/start_new для tg_bot_v2")
+            await state.finish()
+        return
+
+    if filename != 'Данных нет':
+        buf = BytesIO(); doc.save(buf); buf.seek(0)
+        if isinstance(msg_or_cbq, types.CallbackQuery):
+            await msg_or_cbq.message.answer_document((short_filename, buf))
+            await msg_or_cbq.message.answer(f"Ваш документ {filename} готов. Чтобы начать заново, нажмите \n/start для tg_bot_v1\n/start_new для tg_bot_v2")
+        else:
+            await msg_or_cbq.answer_document((short_filename, buf))
+            await msg_or_cbq.answer(f"Ваш документ {filename} готов. Чтобы начать заново, нажмите \n/start для tg_bot_v1\n/start_new для tg_bot_v2")
+        await add_download_history(telegram_id, region, partner, year)
+        await state.finish()
+    else:
+        if isinstance(msg_or_cbq, types.CallbackQuery):
+            await msg_or_cbq.message.answer("По выбранным фильтрам нет данных. Чтобы начать заново, нажмите \n/start для tg_bot_v1\n/start_new для tg_bot_v2")
+        else:
+            await msg_or_cbq.answer("По выбранным фильтрам нет данных. Чтобы начать заново, нажмите \n/start для tg_bot_v1\n/start_new для tg_bot_v2")
+        await state.finish()
