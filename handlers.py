@@ -480,8 +480,6 @@ async def finalize_report(msg_or_cbq, state, tg_user):
             country_table_size=country_table_size,
             month_range_raw=months,
             exclude_raw=exclude_tnved,
-            tn_ved_raw=None,
-            plain=0,
         )
 
     except Exception as e:
@@ -573,7 +571,7 @@ async def download_history_handler(message: types.Message):
 
 async def start_new_handler(message: types.Message, state: FSMContext, user=None):
     await state.finish()
-    set_active_db("alt")
+    set_active_db("main")
     user = user or message.from_user
     telegram_id = user.id
     username = user.username or f"user_{telegram_id}"
@@ -586,13 +584,15 @@ async def start_new_handler(message: types.Message, state: FSMContext, user=None
     await state.update_data(region="Республика Казахстан")
 
     await state.update_data(
-        digit=4,
         months="",
         exclude_tnved="",
         table_size=25,
         text_size=7,
         country_table_size=15,
         subcategory=None,
+        long_report=0,
+        include_regions=0,
+        change_color=1,
         plain=0,
         tn_ved=""
     )
@@ -847,20 +847,24 @@ async def finalize_report_start_new(msg_or_cbq, state, tg_user):
 
     try:
         print(region,partner,year,digit,subcategory,text_size,table_size,country_table_size,months,
-              months,exclude_tnved,tn_ved,int(d.get("plain") or 0))
+              exclude_tnved,tn_ved,int(d.get("plain") or 0))
         
         doc, filename, short_filename = generate_trade_document(
             region=region,
             country_or_group=partner,
-            year=year,
+            start_year=year,
+            end_year=year,
             digit=digit,
             category=subcategory,
             text_size=text_size,
             table_size=table_size,
             country_table_size=country_table_size,
+            tn_ved_raw=tn_ved,
             month_range_raw=months,
             exclude_raw=exclude_tnved,
-            tn_ved_raw=tn_ved,
+            long_report=0,
+            include_regions=0,
+            change_color=1,
             plain=int(d.get("plain") or 0),
         )
         
