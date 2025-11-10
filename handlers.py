@@ -877,10 +877,6 @@ async def finalize_report_start_new(msg_or_cbq, state, tg_user):
             include_regions=0,
             change_color=1,
         )
-        status = res["status"]
-        doc = res["doc"]
-        filename = res["filename"]
-        short_filename = res["short_filename"]
         
     except Exception as e:
         print(e)
@@ -892,7 +888,10 @@ async def finalize_report_start_new(msg_or_cbq, state, tg_user):
             await state.finish()
         return
 
-    if status != 'no_data':
+    if res["status"] != 'no_data':
+        doc = res["doc"]
+        filename = res["filename"]
+        short_filename = res["short_filename"]
         buf = BytesIO(); doc.save(buf); buf.seek(0)
         if isinstance(msg_or_cbq, types.CallbackQuery):
             await msg_or_cbq.message.answer_document((short_filename, buf))
