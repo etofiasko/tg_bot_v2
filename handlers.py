@@ -900,7 +900,7 @@ async def finalize_report_start_new(msg_or_cbq, state, tg_user):
         else:
             await msg_or_cbq.answer_document((short_filename, buf))
             await msg_or_cbq.answer(f"Ваш документ {filename} готов. Чтобы начать заново, нажмите \n/start для tg_bot_v1\n/test для tg_bot_v2")
-        await add_download_history(telegram_id, region, partner, year)
+        await add_download_history(telegram_id, region, partner or tn_ved, year)
         await state.finish()
     else:
         if isinstance(msg_or_cbq, types.CallbackQuery):
