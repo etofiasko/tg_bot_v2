@@ -468,9 +468,9 @@ async def finalize_report(msg_or_cbq, state, tg_user):
     else:
         await msg_or_cbq.answer(f"❗Идет генерация справки. Пожалуйста, подождите.❗", reply_markup = ReplyKeyboardRemove())
     try:
-        print(region,partner,year,digit,subcategory,text_size,table_size,country_table_size,
-            months, exclude_tnved)
+        print("bef gen 1")
         gen = get_generate_trade_document()
+        print("aft gen 1")
         doc, filename, short_filename = gen(
             region=region,
             country_or_group=partner,
@@ -483,8 +483,11 @@ async def finalize_report(msg_or_cbq, state, tg_user):
             month_range_raw=months,
             exclude_raw=exclude_tnved,
         )
+        print("fin gen 1")
 
     except Exception as e:
+        print("exc 1")
+        print(e)
         if isinstance(msg_or_cbq, types.CallbackQuery):
             await msg_or_cbq.message.answer(f"Произошла ошибка при генерации файла. Чтобы начать заново, нажмите \n/start для tg_bot_v1\n/test для tg_bot_v2")
             await state.finish()
@@ -857,8 +860,9 @@ async def finalize_report_start_new(msg_or_cbq, state, tg_user):
         await msg_or_cbq.answer("❗Идет генерация справки. Пожалуйста, подождите.❗", reply_markup=ReplyKeyboardRemove())
 
     try:
+        print("bef gen 2")
         gen = get_generate_trade_document()
-        
+        print("aft gen 2")
         res = gen(
             region=region,
             country_or_group=partner,
@@ -877,8 +881,11 @@ async def finalize_report_start_new(msg_or_cbq, state, tg_user):
             include_regions=0,
             change_color=1,
         )
+        print("fin gen 2")
+
         
     except Exception as e:
+        print("exc 2")
         print(e)
         if isinstance(msg_or_cbq, types.CallbackQuery):
             await msg_or_cbq.message.answer("Произошла ошибка при генерации файла. Чтобы начать заново, нажмите \n/start для tg_bot_v1\n/test для tg_bot_v2")
