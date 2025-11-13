@@ -1,28 +1,28 @@
 import psycopg2
-from config import DB_CONFIG, USERS_DB_CONFIG, ALT_DB_CONFIG
+from config import DB_CONFIG, USERS_DB_CONFIG
 from contextvars import ContextVar
 
-_active_db: ContextVar[str] = ContextVar("_active_db", default="main")
-
-def set_active_db(alias: str):
-    if alias not in ("main", "alt"):
-        raise ValueError("active db must be 'main' or 'alt'")
-    _active_db.set(alias)
-
-class use_db:
-    def __init__(self, alias: str):
-        self.alias = alias
-        self._token = None
-    def __enter__(self):
-        self._token = _active_db.set(self.alias)
-    def __exit__(self, exc_type, exc, tb):
-        _active_db.reset(self._token)
 
 def get_connection():
-    alias = _active_db.get()
-    cfg = DB_CONFIG if alias == "main" else ALT_DB_CONFIG
-    return psycopg2.connect(**cfg)
+    return psycopg2.connect(**DB_CONFIG)
 
+def tnved_exists(code: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT 1
+        FROM tn_veds
+        WHERE code = %s
+          AND digit IN (4, 6, 10)
+        LIMIT 1;
+    """, (code,))
+
+    exists = cursor.fetchone() is not None
+
+    cursor.close()
+    conn.close()
+    return exists
 
 def get_regions():
     conn = get_connection()
@@ -125,7 +125,7 @@ def setup_users_tables():
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             telegram_id BIGINT UNIQUE,
-            username TEXT UNIQUE,
+            username TEXT,
             role TEXT CHECK (role IN ('admin', 'advanced', 'user')) NOT NULL DEFAULT 'user'
         );
     """)
@@ -150,14 +150,16 @@ def setup_users_tables():
 def register_user(telegram_id, username):
     conn = get_users_connection()
     cursor = conn.cursor()
-    
+
+    username_norm = username if username is not None else None
+
     cursor.execute("""
         INSERT INTO users (telegram_id, username)
         VALUES (%s, %s)
-        ON CONFLICT (username) DO UPDATE
-            SET telegram_id = EXCLUDED.telegram_id;
-    """, (telegram_id, username))
-    
+        ON CONFLICT (telegram_id) DO UPDATE
+            SET username = EXCLUDED.username;
+    """, (telegram_id, username_norm))
+
     conn.commit()
     cursor.close()
     conn.close()
@@ -177,27 +179,35 @@ def get_user_role(telegram_id):
     return row[0] if row else None
 
 
-async def change_user_role(username, new_role):
+async def change_user_role(telegram_id: int, new_role: str):
     conn = get_users_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM users WHERE username = %s;", (username.lower(),))
-    user = cursor.fetchone()
+    cursor.execute("""
+        SELECT role, username
+        FROM users
+        WHERE telegram_id = %s;
+    """, (telegram_id,))
+    row = cursor.fetchone()
 
-    if user:
-        cursor.execute("""
-            UPDATE users SET role = %s WHERE username = %s AND role != 'admin';
-        """, (new_role, username.lower()))
-        if cursor.rowcount == 0:
+    if not row:
+        reply = f"Пользователь с telegram_id={telegram_id} ещё ни разу не запускал бота."
+    else:
+        current_role, username = row
+
+        if current_role == 'admin':
             reply = "Вы не можете изменить роль супер админа."
         else:
-            reply = f"Роль пользователя @{username} успешно изменена на {new_role}."
-    else:
-        cursor.execute("""
-            INSERT INTO users (telegram_id, username, role)
-            VALUES (NULL, %s, %s);
-        """, (username.lower(), new_role))
-        reply = f"Пользователь @{username} добавлен с ролью {new_role}."
+            cursor.execute("""
+                UPDATE users
+                SET role = %s
+                WHERE telegram_id = %s AND role != 'admin';
+            """, (new_role, telegram_id))
+            reply = (
+                f"Роль пользователя "
+                f"{('@' + username) if username else f'id={telegram_id}'} "
+                f"успешно изменена на {new_role}."
+            )
 
     conn.commit()
     cursor.close()
@@ -205,32 +215,32 @@ async def change_user_role(username, new_role):
     return reply
 
 
-async def add_download_history(telegram_id, region, partner, year):
+async def add_download_history(telegram_id, partner, year):
     conn = get_users_connection()
     cursor = conn.cursor()
     cursor.execute("""
         SELECT id FROM users WHERE telegram_id = %s;
     """, (telegram_id,))
-    user_id = cursor.fetchone()
+    row = cursor.fetchone()
+    user_id = row[0] if row else None
 
     cursor.execute("""
-        INSERT INTO download_history (user_id, region, partner, year)
-        VALUES (%s, %s, %s, %s);
-    """, (user_id[0], region, partner, year))
+        INSERT INTO download_history (user_id, partner, year)
+        VALUES (%s, %s, %s);
+    """, (user_id, partner, year))
     conn.commit()
     cursor.close()
     conn.close()
-
 
 async def get_download_history():
     conn = get_users_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT h.id, u.username, h.region, h.partner, h.year, h.downloaded_at
+        SELECT h.id, u.username, h.partner, h.year, h.downloaded_at
         FROM download_history h
         JOIN users u ON h.user_id = u.id  
         ORDER BY h.downloaded_at DESC
-        LIMIT 10000;
+        LIMIT 100000;
     """)
     rows = cursor.fetchall()
     cursor.close()
@@ -241,3 +251,16 @@ async def get_download_history():
         return
 
     return reply, rows
+
+async def get_users_for_export():
+    conn = get_users_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, telegram_id, username, role
+        FROM users
+        ORDER BY id;
+    """)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
