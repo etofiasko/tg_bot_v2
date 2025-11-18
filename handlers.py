@@ -134,6 +134,8 @@ async def start_new_handler(message: types.Message, state: FSMContext, user=None
         await message.reply("У вас нет прав для использования бота.")
         return
 
+    await state.update_data(user_role=role)
+
     kb = InlineKeyboardMarkup()
     kb.add(
         InlineKeyboardButton("Самолётик", callback_data="plane_cb"),
@@ -371,8 +373,8 @@ async def finalize_report_start_new(msg_or_cbq, state, tg_user):
     telegram_id = tg_user.id
     d = await state.get_data()
 
-    partner = str(d["partner"])
-    year = int(d["year"])
+    partner = str(d.get('partner'))
+    year = int(d.get('year'))
     tn_ved = ((d.get("tn_ved")).strip() or None)
     subcategory = (d.get("subcategory") or None)
     long_report=0
@@ -385,7 +387,7 @@ async def finalize_report_start_new(msg_or_cbq, state, tg_user):
         await msg_or_cbq.message.answer("❗Идет генерация справки. Пожалуйста, подождите.❗", reply_markup=ReplyKeyboardRemove())
     else:
         await msg_or_cbq.answer("❗Идет генерация справки. Пожалуйста, подождите.❗", reply_markup=ReplyKeyboardRemove())
-
+    print(f'\nChosen data: partner={partner}, year={year}, sub={subcategory}, tn_ved={tn_ved}, long={long_report}, plain={plain}\n')
     try:
         res = generate_trade_document(
             region="Республика Казахстан",
@@ -410,9 +412,13 @@ async def finalize_report_start_new(msg_or_cbq, state, tg_user):
         print(f"\n!!! oh no, error occured:\n{e}\n\n")
         if isinstance(msg_or_cbq, types.CallbackQuery):
             await msg_or_cbq.message.answer("Произошла ошибка при генерации файла. Чтобы начать заново, нажмите /start")
+            if d.get("user_role") == 'admin':
+                await msg_or_cbq.message.answer(f"!!! oh no, error occured:\n{e}")
             await state.finish()
         else:
             await msg_or_cbq.answer("Произошла ошибка при генерации файла. Чтобы начать заново, нажмите /start")
+            if d.get("user_role") == 'admin':
+                await msg_or_cbq.answer(f"!!! oh no, error occured:\n{e}")
             await state.finish()
         return
 
@@ -435,7 +441,7 @@ async def finalize_report_start_new(msg_or_cbq, state, tg_user):
             no_tn_ved = tn_ved
         if subcategory:
             no_subcategory = subcategory
-        if tn_ved !=0:
+        if plain !=0:
             no_plain = "Самолётик"
         hist_txt = partner +' '+ no_tn_ved +' '+ no_subcategory +' '+ no_plain
         print(hist_txt)
