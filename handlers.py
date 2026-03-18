@@ -13,6 +13,7 @@ sys.path.insert(0, REPORT_MODULE_PATH)
 
 from document_gen.generator import generate_trade_document # type: ignore
 
+years = ['2020','2021','2022','2023','2024','2025','2026']
 
 excluded_tnveds_string = (
     "8411,841111,841112,841121,841122,841181,841182,841191,841199,851711,851712,851713,851714,851718,851761,851762,851769,851770,51771,"
@@ -200,7 +201,7 @@ async def start_new_waiting_tnved(message: Message, state: FSMContext):
 
     await state.update_data(tn_ved=txt, digit=len(txt), partner='весь мир')
 
-    years = ['2020','2021','2022','2023','2024','2025']
+    
     kb = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     kb.add(KeyboardButton("Начать заново"))
     for y in years:
@@ -221,7 +222,7 @@ async def start_new_partner(message: Message, state: FSMContext):
         return
     await state.update_data(partner=txt)
 
-    years = ['2020','2021','2022','2023','2024','2025']
+    
     kb = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     kb.add(KeyboardButton("Начать заново"))
     for y in years:
@@ -236,7 +237,7 @@ async def start_new_year(message: Message, state: FSMContext):
         await start_new_handler(message, state)
         return
 
-    years = ['2020','2021','2022','2023','2024','2025']
+    
     if txt not in years:
         await message.answer("Такого года нет. Пожалуйста, выберите из предложенного списка.")
         return
